@@ -1,30 +1,15 @@
-ARG ROS_DISTRO=humble
+ARG ROS_DISTRO=jazzy
 ARG PREFIX=
 
-FROM ros:$ROS_DISTRO-ros-base AS pkg-builder
-
-# select bash as default shell
-SHELL ["/bin/bash", "-c"]
-
-WORKDIR /ros2_ws
-
-ARG DEPTHAI_ROS_RELEASE="v2.8.1-${ROS_DISTRO}"
-
-RUN apt-get update && apt-get install -y \
-		python3-pip \
-        python3-colcon-common-extensions \
-        python3-rosdep
-
-# install everything needed
-RUN git clone https://github.com/luxonis/depthai-ros.git src/depthai-ros -b ${DEPTHAI_ROS_RELEASE} && \
-    git clone https://github.com/ros-misc-utilities/ffmpeg_image_transport.git src/ffmpeg_image_transport && \
-    vcs import src < src/ffmpeg_image_transport/ffmpeg_image_transport.repos && \
-    rm -rf /etc/ros/rosdep/sources.list.d/20-default.list && \
-	rosdep init && \
-    rosdep update --rosdistro $ROS_DISTRO && \
-    rosdep install --from-paths src --ignore-src -r -y && \
-    source /opt/ros/$ROS_DISTRO/setup.bash && \
-    MAKEFLAGS="-j1 -l1" colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+# Stock depthai-ros from the ROS apt repository, pinned per distro, built for amd64 and arm64.
+# Nothing is compiled: the release packages of the ROS buildfarm are installed as they are.
+#
+# A pin that the apt repository no longer carries fails the build loudly rather than installing
+# another version. To move a pin, change the version below and check the parameter names the
+# compose files use (e.g. `rgb.i_low_bandwidth`, `rgb.i_publish_compressed`).
+#
+#   jazzy:  depthai-ros 2.13.0 (depthai core 2.33.0)
+#   humble: depthai-ros 2.12.2 (depthai core 2.31.1)
 
 FROM husarnet/ros:${PREFIX}${ROS_DISTRO}-ros-core
 
@@ -34,24 +19,21 @@ ENV PREFIX_ENV=$PREFIX
 # select bash as default shell
 SHELL ["/bin/bash", "-c"]
 
-COPY --from=pkg-builder /ros2_ws /ros2_ws
-
-WORKDIR /ros2_ws
-
-# installing deppendencies from rosdep
-RUN apt-get update && apt-get install -y \
-		python3-pip \
-        python3-colcon-common-extensions \
-        python3-rosdep && \
-    rm -rf /etc/ros/rosdep/sources.list.d/20-default.list && \
-	rosdep init && \
-    rosdep update --rosdistro $ROS_DISTRO && \
-    rosdep install --from-paths src --ignore-src -r -y && \
-	apt-get clean && \
-	apt-get remove -y \
-		python3-pip \
-        python3-colcon-common-extensions \
-        python3-rosdep && \
-	rm -rf /var/lib/apt/lists/*
-
-RUN echo $(cat /ros2_ws/src/depthai-ros/depthai-ros/package.xml | grep '<version>' | sed -r 's/.*<version>([0-9]+.[0-9]+.[0-9]+)<\/version>/\1/g') > /version.txt
+RUN case "$ROS_DISTRO" in \
+        jazzy)  DEPTHAI_ROS_VERSION=2.13.0; DEPTHAI_CORE_VERSION=2.33.0 ;; \
+        humble) DEPTHAI_ROS_VERSION=2.12.2; DEPTHAI_CORE_VERSION=2.31.1 ;; \
+        *) echo "no depthai-ros pin for ROS_DISTRO=$ROS_DISTRO" >&2; exit 1 ;; \
+    esac && \
+    pkg() { echo "ros-${ROS_DISTRO}-$1=$2-*"; } && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        $(pkg depthai "$DEPTHAI_CORE_VERSION") \
+        $(pkg depthai-bridge "$DEPTHAI_ROS_VERSION") \
+        $(pkg depthai-descriptions "$DEPTHAI_ROS_VERSION") \
+        $(pkg depthai-ros-driver "$DEPTHAI_ROS_VERSION") \
+        $(pkg depthai-ros-msgs "$DEPTHAI_ROS_VERSION") \
+        ros-${ROS_DISTRO}-ffmpeg-image-transport-msgs \
+        ros-${ROS_DISTRO}-rmw-cyclonedds-cpp && \
+    echo "$DEPTHAI_ROS_VERSION" > /version.txt && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*

@@ -36,19 +36,22 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      # One job per distro builds both architectures into one multi-arch tag (as ouster-docker).
+      # The Dockerfile installs the buildfarm's packages and compiles nothing, so the emulated
+      # arm64 half is short. Iron is end of life and has no depthai-ros pin.
       matrix:
-        ros_distro: [iron, humble]
+        ros_distro: [humble, jazzy]
 
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Build Docker Image
-        uses: husarion-ci/ros-docker-img-action@v0.4
+        uses: husarion-ci/ros-docker-img-action@v0.5
         with:
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
