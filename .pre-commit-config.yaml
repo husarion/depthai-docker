@@ -12,7 +12,7 @@ repos:
       - id: check-ast
       - id: check-json
       - id: name-tests-test
-        files: ^.*\/test\/.*$
+        files: ^.*\/test\/.*\.py$
         args: [--pytest-test-first]
 
   - repo: https://github.com/codespell-project/codespell
