@@ -40,9 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       # One job per distro builds both architectures into one multi-arch tag (as ouster-docker).
-      # The Dockerfile installs the buildfarm's depthai-ros packages and compiles only the small
-      # H.264 relay (relay/), so the emulated arm64 half stays short. Iron is end of life and has
-      # no depthai-ros pin.
+      # The Dockerfile installs the buildfarm's packages and compiles nothing, so the emulated
+      # arm64 half is short. Iron is end of life and has no depthai-ros pin.
       matrix:
         ros_distro: [humble, jazzy]
 
